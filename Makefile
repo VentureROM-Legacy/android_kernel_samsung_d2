@@ -372,15 +372,7 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-strict-aliasing -fno-common \
 		   -Werror-implicit-function-declaration \
 		   -Wno-format-security \
-		   -finline-functions \
-		   -fgcse-after-reload \
-		   -ftree-partial-pre \
-		   -fipa-cp-clone \
-		   -mcpu=cortex-a15 -mtune=cortex-a15 -mfpu=neon -mthumb-interwork \
-		   -ftree-vectorize -pipe \
-		   -fno-delete-null-pointer-checks \
-		   -funswitch-loops -fpredictive-commoning \
-		    $(XX_A9) $(XX_GRAPHITE) $(XX_MODULO)
+		   -fno-delete-null-pointer-checks
 KBUILD_AFLAGS_KERNEL :=
 KBUILD_CFLAGS_KERNEL :=
 KBUILD_AFLAGS   := -D__ASSEMBLY__
