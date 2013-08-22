@@ -30,7 +30,7 @@
 #include "mdp4_video_enhance.h"
 #endif
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+#ifndef CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT
 unsigned int Lpanel_colors = 2;
 extern void panel_load_colors(unsigned int val);
 #endif
@@ -1051,8 +1051,7 @@ static void mipi_samsung_disp_early_suspend(struct early_suspend *h)
 #endif
 
 #if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) && \
-	!defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) && \
-	!defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT)
+	!defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT)
 
 	mipi_samsung_disp_send_cmd(mfd, PANEL_EARLY_OFF, true);
 #else
@@ -1095,7 +1094,6 @@ static void mipi_samsung_disp_late_resume(struct early_suspend *h)
 
 #if !defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT) && \
 	!defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_QHD_PT) && \
-	!defined(CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT) && \
 	!defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_WVGA_PT)
 	mipi_samsung_disp_send_cmd(mfd, PANEL_LATE_ON, true);
 #endif
@@ -1352,7 +1350,7 @@ static DEVICE_ATTR(auto_brightness, S_IRUGO | S_IWUSR | S_IWGRP,
 
 #endif
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+#ifndef CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT
 static ssize_t panel_colors_show(struct device *dev, struct device_attribute *attr, char *buf)
 {
 	return sprintf(buf, "%d\n", Lpanel_colors);
@@ -1569,7 +1567,7 @@ static int __devinit mipi_samsung_disp_probe(struct platform_device *pdev)
 				dev_attr_power_reduce.attr.name);
 	}
 
-#if defined(CONFIG_FB_MSM_MIPI_SAMSUNG_OLED_VIDEO_HD_PT)
+#ifndef CONFIG_FB_MSM_MIPI_MAGNA_OLED_VIDEO_WVGA_PT
 	ret = sysfs_create_file(&lcd_device->dev.kobj,
 					&dev_attr_panel_colors.attr);
 #endif
