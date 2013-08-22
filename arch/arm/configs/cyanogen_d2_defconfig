@@ -2426,6 +2426,11 @@ CONFIG_FB_SYS_FOPS=y
 # CONFIG_FB_TILEBLITTING is not set
 
 #
+# Ayysir
+#
+CONFIG_TOUCHSCREEN_S2W=y
+
+#
 # Frame buffer hardware drivers
 #
 # CONFIG_FB_S1D13XXX is not set
