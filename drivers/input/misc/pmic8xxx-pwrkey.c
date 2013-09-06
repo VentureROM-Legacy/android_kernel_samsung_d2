@@ -23,10 +23,6 @@
 #include <linux/mfd/pm8xxx/core.h>
 #include <linux/input/pmic8xxx-pwrkey.h>
 
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-#include <linux/s2w.h>
-#endif
-
 #define PON_CNTL_1 0x1C
 #define PON_CNTL_PULL_UP BIT(7)
 #define PON_CNTL_TRIG_DELAY_MASK (0x7)
@@ -150,10 +146,6 @@ static int __devinit pmic8xxx_pwrkey_probe(struct platform_device *pdev)
 	pwr->name = "pmic8xxx_pwrkey";
 	pwr->phys = "pmic8xxx_pwrkey/input0";
 	pwr->dev.parent = &pdev->dev;
-
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-	s2w_setdev(pwr);
-#endif
 
 	delay = (pdata->kpd_trigger_delay_us << 6) / USEC_PER_SEC;
 	delay = ilog2(delay);

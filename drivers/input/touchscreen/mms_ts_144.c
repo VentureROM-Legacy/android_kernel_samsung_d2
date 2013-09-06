@@ -559,118 +559,6 @@ static void melfas_ta_cb(struct tsp_callbacks *cb, bool ta_status)
 	}
 }
 
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-static bool isasleep = false;
-static unsigned int wake_start = 0;
-static unsigned int x_lo;
-static unsigned int x_onethird;
-static unsigned int x_twothird;
-static unsigned int x_hi;
-static struct input_dev *s2w_dev;
-static DEFINE_MUTEX(s2w_lock);
-static DEFINE_SEMAPHORE(s2w_sem);
-extern int get_suspend_state(void);
-extern void request_suspend_state(int);
-bool s2w_enabled = true;
-bool s2w_enabled_plug = true;
-static unsigned int s2w_enabled_req = 0;
-#endif
-
-static int mms_ts_enable(struct mms_ts_info *info, int wakeupcmd)
-{
-	mutex_lock(&info->lock);
-	if (info->enabled)
-		goto out;
-	/* wake up the touch controller. */
-	if (wakeupcmd == 1) {
-		i2c_smbus_write_byte_data(info->client, 0, 0);
-		usleep_range(3000, 5000);
-	}
-out:
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-	if (isasleep)
-	{
-		if (s2w_enabled)
-			disable_irq_wake(info->irq);
-		else
-		{
-			if (!info->enabled)
-				enable_irq(info->irq);
-		}
-	}
-	info->enabled = true;
-	isasleep = false;
-#endif
-	mutex_unlock(&info->lock);
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-	if (s2w_enabled_req == 11)
-	{
-		s2w_enabled = true;
-		s2w_enabled_req = 0;
-	}	
-	if (s2w_enabled_req == 10)
-	{
-		s2w_enabled = false;
-		s2w_enabled_req = 0;
-	}	
-#endif
-	return 0;
-}
-
-static int mms_ts_disable(struct mms_ts_info *info, int sleepcmd)
-{
-	mutex_lock(&info->lock);
-	if (!info->enabled)
-		goto out;
-	if (sleepcmd == 1) {
-		i2c_smbus_write_byte_data(info->client, MMS_MODE_CONTROL, 0);
-		usleep_range(10000, 12000);
-	}
-out:
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-	if (!isasleep)
-	{
-		if (!isasleep && s2w_enabled)
-			enable_irq_wake(info->irq);
-		else
-			disable_irq(info->irq);
-	}
-	if (!s2w_enabled)
-		info->enabled = false;
-	isasleep = true;
-	touch_is_pressed = 0;
-#endif
-	mutex_unlock(&info->lock);
-	return 0;
-}
-
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-void s2w_setdev(struct input_dev *input_device)
-{
-	s2w_dev = input_device;
-}
-
-static void s2w_presspwr(struct work_struct *s2w_presspwr_work)
-{
-	input_event(s2w_dev, EV_KEY, KEY_POWER, 1);
-	input_event(s2w_dev, EV_SYN, 0, 0);
-	msleep(250);
-	input_event(s2w_dev, EV_KEY, KEY_POWER, 0);
-	input_event(s2w_dev, EV_SYN, 0, 0);
-	mutex_unlock(&s2w_lock);
-	msleep(1000);
-	pr_info("WAKE_START OFF-2 %d\n", s2w_dev->id.version);
-}
-
-static DECLARE_WORK(s2w_presspwr_work, s2w_presspwr);
-
-void s2w_pwrtrigger(void)
-{
-	if (mutex_trylock(&s2w_lock))
-		schedule_work(&s2w_presspwr_work);
-}
-#endif
-
 static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 {
 	struct mms_ts_info *info = dev_id;
@@ -692,13 +580,7 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 			.buf    = buf,
 		},
 	};
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-	if (s2w_enabled) {
-		ret = down_trylock(&s2w_sem);
-		if (ret)
-			printk(KERN_ERR "[TSP] s2w SEM cannot be aquired\n");
-	}
-#endif
+
 	sz = i2c_smbus_read_byte_data(client, MMS_INPUT_EVENT_PKT_SZ);
 	if (sz < 0) {
 		dev_err(&client->dev, "%s bytes=%d\n", __func__, sz);
@@ -776,15 +658,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 		}
 
 		if ((tmp[0] & 0x80) == 0) {
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-			//pr_info("WAKE_START BAD %d-%d-%d\n", wake_start, x, x_hi);
-			if (s2w_enabled && wake_start == 3 && x > x_hi) {
-				//s2w_force_wakeup();
-				s2w_pwrtrigger();
-				pr_info("WAKE_START OFF-1 %d-%d\n", x, x_hi);
-			}
-			wake_start = 0;
-#endif
 #if defined(SEC_TSP_DEBUG)
 			dev_dbg(&client->dev,
 				"finger id[%d]: x=%d y=%d p=%d w=%d major=%d minor=%d angle=%d palm=%d\n"
@@ -821,57 +694,14 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #if defined(SEC_TSP_DEBUG)
 		if (info->finger_state[id] == 0) {
 			info->finger_state[id] = 1;
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-			if (s2w_enabled && x < x_lo && isasleep == true)
-			{
-				wake_start = 1;
-				pr_info("WAKE_START ON1 %d-%d\n", x, x_lo);
-			}
-#endif
 			dev_dbg(&client->dev,
 				"finger id[%d]: x=%d y=%d p=%d w=%d major=%d minor=%d angle=%d palm=%d\n"
 				, id, x, y, tmp[5], tmp[4], tmp[6], tmp[7]
 				, angle, palm);
 		}
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-		else
-		{
-			if (s2w_enabled && wake_start == 1 && x >= (x_onethird-30) && x <= (x_onethird+30) && isasleep == true)
-			{
-				wake_start = 2;
-				pr_info("WAKE_START ON2 %d-%d\n", x, x_lo);
-			}
-			if (s2w_enabled && wake_start == 2 && x >= (x_twothird-30) && x <= (x_twothird+30) && isasleep == true)
-			{
-				wake_start = 3;
-				pr_info("WAKE_START ON3 %d-%d\n", x, x_lo);
-			}
-		}
-#endif
 #else
 		if (info->finger_state[id] == 0) {
 			info->finger_state[id] = 1;
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-			if (s2w_enabled && x < x_lo && isasleep == true)
-			{
-				wake_start = 1;
-				pr_info("WAKE_START ON1 %d-%d\n", x, x_lo);
-			}
-			//dev_notice(&client->dev, "finger [%d] down\n", id);
-		}
-		else
-		{
-			if (s2w_enabled && wake_start == 1 && x >= (x_onethird-30) && x <= (x_onethird+30) && isasleep == true)
-			{
-				wake_start = 2;
-				pr_info("WAKE_START ON2 %d-%d\n", x, x_lo);
-			}
-			if (s2w_enabled && wake_start == 2 && x >= (x_twothird-30) && x <= (x_twothird+30) && isasleep == true)
-			{
-				wake_start = 3;
-				pr_info("WAKE_START ON3 %d-%d\n", x, x_lo);
-			}
-#endif
 		}
 #endif
 	}
@@ -889,10 +719,6 @@ static irqreturn_t mms_ts_interrupt(int irq, void *dev_id)
 #endif
 
 out:
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-	if (s2w_enabled)
-		up(&s2w_sem);
-#endif
 	return IRQ_HANDLED;
 }
 
@@ -1935,6 +1761,40 @@ static int get_hw_version(struct mms_ts_info *info)
 	} while (ret < 0 && retries-- > 0);
 
 	return ret;
+}
+
+static int mms_ts_enable(struct mms_ts_info *info, int wakeupcmd)
+{
+	mutex_lock(&info->lock);
+	if (info->enabled)
+		goto out;
+	/* wake up the touch controller. */
+	if (wakeupcmd == 1) {
+		i2c_smbus_write_byte_data(info->client, 0, 0);
+		usleep_range(3000, 5000);
+	}
+	info->enabled = true;
+	enable_irq(info->irq);
+out:
+	mutex_unlock(&info->lock);
+	return 0;
+}
+
+static int mms_ts_disable(struct mms_ts_info *info, int sleepcmd)
+{
+	mutex_lock(&info->lock);
+	if (!info->enabled)
+		goto out;
+	disable_irq(info->irq);
+	if (sleepcmd == 1) {
+		i2c_smbus_write_byte_data(info->client, MMS_MODE_CONTROL, 0);
+		usleep_range(10000, 12000);
+	}
+	info->enabled = false;
+	touch_is_pressed = 0;
+out:
+	mutex_unlock(&info->lock);
+	return 0;
 }
 
 static int mms_ts_finish_config(struct mms_ts_info *info)
@@ -3038,81 +2898,6 @@ static ssize_t show_intensity_logging_off(struct device *dev,
 
 #endif
 
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-static ssize_t s2w_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", s2w_enabled);
-}
-
-static ssize_t s2w_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	int ret;
-	unsigned int value;
-	
-	ret = sscanf(buf, "%d\n", &value);
-	if (ret != 1)
-		return -EINVAL;
-	else
-		s2w_enabled = value ? true : false;
-
-	return size;
-}
-
-void s2w_change(unsigned int val)
-{
-	if (s2w_enabled_plug)
-	{
-		if (isasleep)
-			s2w_enabled_req = val;
-		else
-			s2w_enabled = (val - 10) ? true : false;
-	}
-	else
-	{
-		s2w_enabled_req = val + 10;
-	}
-}
-
-static ssize_t s2w_plug_show(struct device *dev, struct device_attribute *attr, char *buf)
-{
-	return sprintf(buf, "%d\n", s2w_enabled_plug);
-}
-
-static ssize_t s2w_plug_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t size)
-{
-	int ret;
-	unsigned int value;
-	
-	ret = sscanf(buf, "%d\n", &value);
-	if (ret != 1)
-		return -EINVAL;
-	else
-	{
-		s2w_enabled_plug = value ? true : false;
-		if (s2w_enabled_req == 20 || s2w_enabled_req == 21)
-		{
-			//s2w_enabled = s2w_enabled_plug; //(s2w_enabled_req - 20) ? true : false;
-			if (s2w_enabled_plug)
-			{
-				if (isasleep)
-					s2w_enabled_req = s2w_enabled_req - 10;
-				else
-					s2w_enabled = (s2w_enabled_req - 20) ? true : false;
-			}
-			else
-				s2w_enabled_req = 0;
-		}
-	}
-
-	return size;
-}
-
-static DEVICE_ATTR(s2w, S_IRUGO | S_IWUSR | S_IWGRP,
-	s2w_show, s2w_store);
-static DEVICE_ATTR(s2w_plug, S_IRUGO | S_IWUSR | S_IWGRP,
-	s2w_plug_show, s2w_plug_store);
-#endif
-
 static DEVICE_ATTR(close_tsp_test, S_IRUGO, show_close_tsp_test, NULL);
 static DEVICE_ATTR(cmd, S_IWUSR | S_IWGRP, NULL, store_cmd);
 static DEVICE_ATTR(cmd_status, S_IRUGO, show_cmd_status, NULL);
@@ -3132,10 +2917,6 @@ static struct attribute *sec_touch_facotry_attributes[] = {
 #ifdef ESD_DEBUG
 		&dev_attr_intensity_logging_on.attr,
 		&dev_attr_intensity_logging_off.attr,
-#endif
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-		&dev_attr_s2w.attr,
-		&dev_attr_s2w_plug.attr,
 #endif
 		NULL,
 };
@@ -3191,12 +2972,6 @@ static int __devinit mms_ts_probe(struct i2c_client *client,
 		info->max_x = 720;
 		info->max_y = 1280;
 	}
-#ifdef CONFIG_TOUCHSCREEN_S2W 
-	x_lo = info->max_x / 10;
-	x_onethird = (info->max_x / 10) * 3;
-	x_twothird = (info->max_x / 10) * 6;
-	x_hi = (info->max_x / 10) * 9;
-#endif
 
 	i2c_set_clientdata(client, info);
 
