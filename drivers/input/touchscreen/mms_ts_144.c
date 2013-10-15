@@ -485,6 +485,9 @@ static void release_all_fingers(struct mms_ts_info *info)
 	set_dvfs_lock(info, 2);
 	pr_info("[TSP] dvfs_lock free.\n ");
 #endif
+#ifdef CONFIG_INTERACTION_HINTS
+	cpufreq_set_interactivity(0, INTERACT_ID_TOUCHSCREEN);
+#endif
 }
 
 static void mms_set_noise_mode(struct mms_ts_info *info)
