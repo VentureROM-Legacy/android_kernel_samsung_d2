@@ -29,5 +29,5 @@ include $(CLEAR_VARS)
 #LOCAL_MODULE_PATH  := $(TARGET_OUT_ETC)/firmware/wlan/prima
 #include $(BUILD_PREBUILT)
 
-#endif
+endif
 endif
